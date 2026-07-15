@@ -745,7 +745,7 @@ class _ContactSection extends StatelessWidget {
                 crossAxisCount: wide ? 4 : (isTablet(context) ? 2 : 1),
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
-                childAspectRatio: wide ? 0.95 : 2.6,
+                childAspectRatio: wide ? 0.95 : (isTablet(context) ? 1.3 : 1.6),
                 children: cards,
               ),
             ],
