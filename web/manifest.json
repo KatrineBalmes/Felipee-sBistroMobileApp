@@ -1,6 +1,6 @@
 {
-    "name": "filipee",
-    "short_name": "filipee",
+    "name": "test",
+    "short_name": "test",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
