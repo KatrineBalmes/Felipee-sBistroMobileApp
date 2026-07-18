@@ -308,7 +308,7 @@ class _MenuPanel extends StatelessWidget {
 }
 
 /// Menu item card for the POS grid — shows the dish's actual photo
-/// (same `menuItemImage` mapping used on the public landing page) instead
+/// (same `MenuItemPhoto` widget used on the public landing page) instead
 /// of a generic category icon, with the name / price / stock line laid
 /// out under the photo like the landing page's menu cards.
 class _MenuPhotoTile extends StatelessWidget {
@@ -319,11 +319,19 @@ class _MenuPhotoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final lowStock = canOrder && item.stock <= item.reorderLevel;
     return Container(
       decoration: BoxDecoration(
         color: AppColors.bgCard,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -333,10 +341,7 @@ class _MenuPhotoTile extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Image.asset(
-                  menuItemImage(item.name, item.category),
-                  fit: BoxFit.cover,
-                ),
+                MenuItemPhoto(name: item.name, category: item.category),
                 if (!canOrder)
                   Container(
                     color: Colors.black.withValues(alpha: 0.55),
@@ -370,7 +375,10 @@ class _MenuPhotoTile extends StatelessWidget {
                     Text(
                       canOrder ? '${item.stock} left' : 'Unavailable',
                       style: TextStyle(
-                          color: canOrder ? AppColors.textSecondary : AppColors.accentRed,
+                          color: !canOrder
+                              ? AppColors.accentRed
+                              : (lowStock ? AppColors.warning : AppColors.textSecondary),
+                          fontWeight: lowStock ? FontWeight.w700 : FontWeight.w400,
                           fontSize: 10.5),
                     ),
                   ],
@@ -379,15 +387,36 @@ class _MenuPhotoTile extends StatelessWidget {
                 SizedBox(
                   height: 32,
                   width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: canOrder ? () => onAdd(item) : null,
-                    style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      disabledBackgroundColor: AppColors.bgInput,
-                      textStyle: const TextStyle(fontSize: 12),
-                    ),
-                    child: Text(canOrder ? '+ Add' : 'Unavailable'),
-                  ),
+                  child: canOrder
+                      ? Material(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(9),
+                          child: InkWell(
+                            onTap: () => onAdd(item),
+                            borderRadius: BorderRadius.circular(9),
+                            child: Ink(
+                              decoration: BoxDecoration(
+                                gradient: AppColors.gradient,
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                              child: const Center(
+                                child: Text('+ Add',
+                                    style: TextStyle(
+                                        color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
+                              ),
+                            ),
+                          ),
+                        )
+                      : DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: AppColors.bgInput,
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: const Center(
+                            child: Text('Unavailable',
+                                style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                          ),
+                        ),
                 ),
               ],
             ),
@@ -452,9 +481,19 @@ class _CartPanel extends StatelessWidget {
           const SizedBox(height: 8),
           if (cart.isEmpty)
             const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
+              padding: EdgeInsets.symmetric(vertical: 28),
               child: Center(
-                child: Text('Cart is empty', style: TextStyle(color: AppColors.textSecondary)),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.shopping_cart_outlined, color: AppColors.textSecondary, size: 34),
+                    SizedBox(height: 8),
+                    Text('Cart is empty', style: TextStyle(color: AppColors.textSecondary)),
+                    SizedBox(height: 2),
+                    Text('Tap "+ Add" on a menu item to start an order',
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                  ],
+                ),
               ),
             )
           else
@@ -467,27 +506,51 @@ class _CartPanel extends StatelessWidget {
                 itemBuilder: (_, i) {
                   final item = cart[i];
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     decoration: BoxDecoration(
                       color: AppColors.bgInput,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.border),
                     ),
                     child: Row(
                       children: [
                         Expanded(
-                            child: Text(item.name,
-                                style: const TextStyle(fontSize: 12.5),
-                                overflow: TextOverflow.ellipsis)),
-                        _QtyButton(icon: Icons.remove, onTap: () => onQtyChange(item, -1)),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
-                          child: Text('${item.qty}',
-                              style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w700)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(item.name,
+                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                                  overflow: TextOverflow.ellipsis),
+                              const SizedBox(height: 2),
+                              Text(peso(item.subtotal),
+                                  style: const TextStyle(
+                                      color: AppColors.accent2,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700)),
+                            ],
+                          ),
                         ),
-                        _QtyButton(icon: Icons.add, onTap: () => onQtyChange(item, 1), accent: true),
-                        const SizedBox(width: 8),
-                        Text(peso(item.subtotal),
-                            style: const TextStyle(color: AppColors.accent2, fontSize: 12)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.bgCard,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _QtyButton(icon: Icons.remove, onTap: () => onQtyChange(item, -1)),
+                              SizedBox(
+                                width: 26,
+                                child: Text('${item.qty}',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                        color: AppColors.accent, fontWeight: FontWeight.w800, fontSize: 13)),
+                              ),
+                              _QtyButton(icon: Icons.add, onTap: () => onQtyChange(item, 1), accent: true),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   );
@@ -543,17 +606,21 @@ class _QtyButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        width: 22,
-        height: 22,
-        decoration: BoxDecoration(
-          color: accent ? AppColors.accent : AppColors.border,
-          borderRadius: BorderRadius.circular(6),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(7),
+        child: Container(
+          width: 26,
+          height: 26,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: accent ? AppColors.accent : AppColors.border,
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Icon(icon, size: 14, color: Colors.white),
         ),
-        child: Icon(icon, size: 13, color: Colors.white),
       ),
     );
   }

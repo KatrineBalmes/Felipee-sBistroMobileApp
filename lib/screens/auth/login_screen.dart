@@ -38,16 +38,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
 
-    final stopwatch = Stopwatch()..start();
-
-final user = await DBHelper.instance.verifyLogin(
-  username,
-  password,
-);
-
-stopwatch.stop();
-
-print("LOGIN QUERY: ${stopwatch.elapsedMilliseconds} ms");
+    final user = await DBHelper.instance.verifyLogin(username, password);
 
     if (!mounted) return;
     setState(() => _loading = false);

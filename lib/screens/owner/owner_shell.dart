@@ -18,13 +18,6 @@ class OwnerShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final stopwatch = Stopwatch()..start();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      stopwatch.stop();
-      debugPrint("OWNER SHELL: ${stopwatch.elapsedMilliseconds} ms");
-    });
-
     return AppShell(
       appTitle: "Filipee's",
       roleLabel: '👑 OWNER',

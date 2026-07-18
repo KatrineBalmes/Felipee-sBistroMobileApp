@@ -193,23 +193,71 @@ class StatusPill extends StatelessWidget {
 bool isWide(BuildContext context) => MediaQuery.of(context).size.width >= 900;
 bool isTablet(BuildContext context) => MediaQuery.of(context).size.width >= 600;
 
-/// Maps a menu item to an actual photo of the dish (per the professor's
-/// note: real photos instead of generic icons). Falls back to a sensible
-/// photo for the item's category, and finally to the bistro logo.
-String menuItemImage(String name, String category) {
-  const byName = {
+/// Shows the dish's actual photo when we have one that truly matches its
+/// name (no more mismatched photos like a Sprite bottle under "Iced Tea").
+/// When there's no real matching photo, it falls back to a clean,
+/// brand-colored icon tile for the item's category instead of borrowing
+/// an unrelated product's picture.
+class MenuItemPhoto extends StatelessWidget {
+  final String name;
+  final String category;
+  final BoxFit fit;
+  const MenuItemPhoto({
+    super.key,
+    required this.name,
+    required this.category,
+    this.fit = BoxFit.cover,
+  });
+
+  // Only items we have a genuine, correctly-matching photo for.
+  static const Map<String, String> _photoByName = {
     'Lomi Special': 'assets/images/gallery_5.jpg',
     'Lomi Regular': 'assets/images/gallery_3.jpg',
     'Extra Mami': 'assets/images/gallery_1.jpg',
     'Fried Rice': 'assets/images/gallery_2.jpg',
     'Softdrinks': 'assets/images/coke.jpg',
-    'Iced Tea': 'assets/images/sprite.jpg',
   };
-  const byCategory = {
-    'Lomi': 'assets/images/gallery_5.jpg',
-    'Pancit': 'assets/images/gallery_1.jpg',
-    'Drinks': 'assets/images/coke.jpg',
-    'Others': 'assets/images/gallery_2.jpg',
+
+  static const Map<String, IconData> _iconByCategory = {
+    'Lomi': Icons.ramen_dining,
+    'Pancit': Icons.dinner_dining,
+    'Drinks': Icons.local_drink,
+    'Others': Icons.rice_bowl,
   };
-  return byName[name] ?? byCategory[category] ?? 'assets/images/logo.jpg';
+
+  static const Map<String, List<Color>> _gradientByCategory = {
+    'Lomi': [AppColors.accent, AppColors.accent2],
+    'Pancit': [Color(0xFFD9642C), Color(0xFF9C3D14)],
+    'Drinks': [AppColors.accentBlue, Color(0xFF1B4F72)],
+    'Others': [AppColors.accentGreen, Color(0xFF117A52)],
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final photo = _photoByName[name];
+    if (photo != null) return Image.asset(photo, fit: fit);
+
+    final colors = _gradientByCategory[category] ?? const [AppColors.accent, AppColors.accent2];
+    final icon = _iconByCategory[category] ?? Icons.restaurant_menu;
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: colors,
+        ),
+      ),
+      alignment: Alignment.center,
+      child: Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.18),
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: Icon(icon, color: Colors.white, size: 26),
+      ),
+    );
+  }
 }

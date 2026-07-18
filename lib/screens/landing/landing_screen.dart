@@ -589,16 +589,20 @@ class _MenuPhotoCard extends StatelessWidget {
         color: AppColors.bgCard,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.16),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
-            child: Image.asset(
-              menuItemImage(item.name, item.category),
-              fit: BoxFit.cover,
-            ),
+            child: MenuItemPhoto(name: item.name, category: item.category),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
