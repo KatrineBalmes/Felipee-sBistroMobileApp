@@ -150,6 +150,40 @@ class _PosPageState extends State<PosPage> {
     );
   }
 
+  /// Builds a fresh `_CartPanel` bound to current state. Kept as a method
+  /// (instead of a one-time local variable) so both the wide-layout side
+  /// panel AND the mobile bottom-sheet can each request an up-to-date copy
+  /// whenever they rebuild — this is what makes qty +/-, order type, and
+  /// payment method selection actually reflect on screen immediately.
+  Widget _buildCartPanel({VoidCallback? extraRebuild}) {
+    return _CartPanel(
+      cart: _cart,
+      orderType: _orderType,
+      paymentMethod: _paymentMethod,
+      total: _total,
+      onOrderType: (v) {
+        setState(() => _orderType = v);
+        extraRebuild?.call();
+      },
+      onPayment: (v) {
+        setState(() => _paymentMethod = v);
+        extraRebuild?.call();
+      },
+      onQtyChange: (item, delta) {
+        _changeQty(item, delta);
+        extraRebuild?.call();
+      },
+      onCheckout: () async {
+        await _checkout();
+        extraRebuild?.call();
+      },
+      onClear: () {
+        setState(() => _cart.clear());
+        extraRebuild?.call();
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final wide = isWide(context);
@@ -162,17 +196,6 @@ class _PosPageState extends State<PosPage> {
       onCategoryChanged: _changeCategory,
       onAdd: _addToCart,
     );
-    final cartPanel = _CartPanel(
-      cart: _cart,
-      orderType: _orderType,
-      paymentMethod: _paymentMethod,
-      total: _total,
-      onOrderType: (v) => setState(() => _orderType = v),
-      onPayment: (v) => setState(() => _paymentMethod = v),
-      onQtyChange: _changeQty,
-      onCheckout: _checkout,
-      onClear: () => setState(() => _cart.clear()),
-    );
 
     if (wide) {
       return Padding(
@@ -182,7 +205,7 @@ class _PosPageState extends State<PosPage> {
           children: [
             Expanded(flex: 3, child: menuPanel),
             const SizedBox(width: 16),
-            SizedBox(width: 360, child: cartPanel),
+            SizedBox(width: 360, child: _buildCartPanel()),
           ],
         ),
       );
@@ -207,18 +230,39 @@ class _PosPageState extends State<PosPage> {
                 context: context,
                 backgroundColor: Colors.transparent,
                 isScrollControlled: true,
-                builder: (_) => DraggableScrollableSheet(
-                  initialChildSize: 0.85,
-                  minChildSize: 0.5,
-                  maxChildSize: 0.95,
-                  expand: false,
-                  builder: (_, controller) => Container(
-                    decoration: const BoxDecoration(
-                      color: AppColors.bgCard,
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                    ),
-                    child: SingleChildScrollView(controller: controller, child: cartPanel),
-                  ),
+                builder: (sheetContext) => StatefulBuilder(
+                  // StatefulBuilder gives the sheet its own setState, so we
+                  // can force it to redraw with fresh cart data every time
+                  // the user taps +/-, an order type chip, or a payment chip,
+                  // instead of showing a frozen snapshot until the sheet closes.
+                  builder: (context, modalSetState) {
+                    if (_cart.isEmpty) {
+                      // Cart got cleared/checked out while the sheet was open.
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (Navigator.of(sheetContext).canPop()) {
+                          Navigator.of(sheetContext).pop();
+                        }
+                      });
+                    }
+                    return DraggableScrollableSheet(
+                      initialChildSize: 0.85,
+                      minChildSize: 0.5,
+                      maxChildSize: 0.95,
+                      expand: false,
+                      builder: (_, controller) => Container(
+                        decoration: const BoxDecoration(
+                          color: AppColors.bgCard,
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                        ),
+                        child: SingleChildScrollView(
+                          controller: controller,
+                          child: _buildCartPanel(
+                            extraRebuild: () => modalSetState(() {}),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),

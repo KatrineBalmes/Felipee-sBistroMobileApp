@@ -133,12 +133,12 @@ class _DashboardPageState extends State<DashboardPage> {
                     child: Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: AppColors.accent.withValues(alpha: 0.14),
-                            borderRadius: BorderRadius.circular(10),
+                            gradient: AppColors.gradient,
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.receipt, color: AppColors.accent2, size: 16),
+                          child: const Icon(Icons.receipt_long, color: Colors.white, size: 17),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -146,14 +146,15 @@ class _DashboardPageState extends State<DashboardPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text('${t.orderType} · ${t.paymentMethod}',
-                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                              Text(t.createdAt,
+                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                              const SizedBox(height: 2),
+                              Text(formatOrderTimestamp(t.createdAt),
                                   style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                             ],
                           ),
                         ),
                         Text(peso(t.total),
-                            style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w800)),
+                            style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w800, fontSize: 14)),
                       ],
                     ),
                   ),
@@ -172,7 +173,16 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BistroCard(
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(color: color.withValues(alpha: 0.10), blurRadius: 14, offset: const Offset(0, 6)),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,

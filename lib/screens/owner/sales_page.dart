@@ -94,14 +94,25 @@ class _SalesPageState extends State<SalesPage> {
                             bottomTitles: AxisTitles(
                               sideTitles: SideTitles(
                                 showTitles: true,
-                                reservedSize: 28,
+                                reservedSize: 26,
                                 getTitlesWidget: (v, meta) {
                                   final i = v.toInt();
                                   if (i < 0 || i >= _daily.length) return const SizedBox();
+                                  // Only show every Nth label so dates never
+                                  // crowd into each other, however many bars
+                                  // there are — and shorten "07-19" to "7/19"
+                                  // so each label takes less horizontal room.
+                                  final maxLabels = 6;
+                                  final step = (_daily.length / maxLabels).ceil().clamp(1, 999);
+                                  final isFirst = i == 0;
+                                  final isLast = i == _daily.length - 1;
+                                  if (!isFirst && !isLast && i % step != 0) return const SizedBox();
+                                  final bits = _daily[i].key.split('-');
+                                  final short = '${int.parse(bits[0])}/${int.parse(bits[1])}';
                                   return Padding(
                                     padding: const EdgeInsets.only(top: 6),
-                                    child: Text(_daily[i].key,
-                                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 9)),
+                                    child: Text(short,
+                                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 9.5)),
                                   );
                                 },
                               ),
@@ -140,7 +151,8 @@ class _SalesPageState extends State<SalesPage> {
                         children: [
                           Text('${t.orderType} · ${t.paymentMethod}',
                               style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
-                          Text(t.createdAt, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                          Text(formatOrderTimestamp(t.createdAt),
+                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                         ],
                       ),
                     ),

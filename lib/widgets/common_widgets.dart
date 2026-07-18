@@ -193,6 +193,53 @@ class StatusPill extends StatelessWidget {
 bool isWide(BuildContext context) => MediaQuery.of(context).size.width >= 900;
 bool isTablet(BuildContext context) => MediaQuery.of(context).size.width >= 600;
 
+const _monthNames = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/// Turns a stored "YYYY-MM-DD HH:MM:SS" order timestamp into a clear,
+/// human-friendly label like "Today · 2:57 PM" or "Jul 18 · 12:00 PM",
+/// so order history actually shows what time each order really came in.
+String formatOrderTimestamp(String raw) {
+  try {
+    final parts = raw.trim().split(' ');
+    final dateBits = parts[0].split('-').map(int.parse).toList();
+    final timeBits = parts.length > 1
+        ? parts[1].split(':').map(int.parse).toList()
+        : <int>[0, 0, 0];
+
+    final dt = DateTime(
+      dateBits[0],
+      dateBits[1],
+      dateBits[2],
+      timeBits.isNotEmpty ? timeBits[0] : 0,
+      timeBits.length > 1 ? timeBits[1] : 0,
+    );
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final orderDay = DateTime(dt.year, dt.month, dt.day);
+    final dayDiff = today.difference(orderDay).inDays;
+
+    final String dayLabel;
+    if (dayDiff == 0) {
+      dayLabel = 'Today';
+    } else if (dayDiff == 1) {
+      dayLabel = 'Yesterday';
+    } else {
+      dayLabel = '${_monthNames[dt.month - 1]} ${dt.day}';
+    }
+
+    final hour12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+    final minute = dt.minute.toString().padLeft(2, '0');
+    return '$dayLabel · $hour12:$minute $ampm';
+  } catch (_) {
+    return raw;
+  }
+}
+
 /// Shows the dish's actual photo when we have one that truly matches its
 /// name (no more mismatched photos like a Sprite bottle under "Iced Tea").
 /// When there's no real matching photo, it falls back to a clean,

@@ -91,7 +91,26 @@ class _AppShellState extends State<AppShell> {
     return Scaffold(
       backgroundColor: AppColors.bgPrimary,
       appBar: AppBar(
-        title: Text(widget.items[_index].label),
+        // The page body already shows its own big title (e.g. "Dashboard",
+        // "Inventory"), so the app bar only carries the brand + role badge
+        // here instead of repeating that same title a second time.
+        titleSpacing: 20,
+        title: Row(
+          children: [
+            Text(widget.appTitle,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 15)),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: widget.roleColor.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(widget.roleLabel,
+                  style: TextStyle(color: widget.roleColor, fontSize: 10, fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
         actions: [
           IconButton(onPressed: _logout, icon: const Icon(Icons.logout, size: 20)),
         ],
