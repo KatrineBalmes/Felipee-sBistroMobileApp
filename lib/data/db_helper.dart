@@ -1,99 +1,68 @@
-import 'dart:convert';
-import 'package:path/path.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/models.dart';
 
-/// Local SQLite persistence layer for the mobile app.
-/// Table structure intentionally mirrors the original
-/// `filipees_bistro.db` used by the CustomTkinter desktop version:
-/// menu_items, ingredients, transactions, users.
+/// Cloud Firestore persistence layer for the mobile app.
+/// Collections mirror the original SQLite tables:
+///   menu_items, ingredients, transactions, users
+///
+/// Kept as the same `DBHelper.instance` singleton with the same method
+/// names as the old SQLite version, so PosPage / InventoryPage /
+/// UsersPage / DashboardPage / SalesPage / ForecastPage / LandingScreen /
+/// LoginScreen don't need any changes — only the `id` fields switched
+/// from `int?` to `String?` (Firestore document IDs), which those screens
+/// already handle transparently since they just pass `.id` straight
+/// through without assuming it's an int.
 class DBHelper {
   DBHelper._internal();
   static final DBHelper instance = DBHelper._internal();
 
-  Database? _db;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  Future<Database> get database async {
-    _db ??= await _initDB();
-    return _db!;
+  CollectionReference<Map<String, dynamic>> get _menuItems =>
+      _db.collection('menu_items');
+  CollectionReference<Map<String, dynamic>> get _ingredients =>
+      _db.collection('ingredients');
+  CollectionReference<Map<String, dynamic>> get _transactions =>
+      _db.collection('transactions');
+  CollectionReference<Map<String, dynamic>> get _users =>
+      _db.collection('users');
+
+  // Runs once per app session: seeds default accounts/menu/ingredients/
+  // sample sales the first time the Firestore project is empty, mirroring
+  // what `_onCreate` + `_seed` did for a brand-new SQLite file.
+  Future<void>? _seedFuture;
+  Future<void> _ensureSeeded() => _seedFuture ??= _seedIfEmpty();
+
+  Future<void> _seedIfEmpty() async {
+    final usersSnap = await _users.limit(1).get();
+    if (usersSnap.docs.isEmpty) {
+      await _seedUsers();
+    }
+    final menuSnap = await _menuItems.limit(1).get();
+    if (menuSnap.docs.isEmpty) {
+      await _seedMenuIngredientsAndSales();
+    }
   }
 
-  Future<Database> _initDB() async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'filipees_bistro.db');
-    return openDatabase(
-      path,
-      version: 1,
-      onCreate: _onCreate,
-    );
-  }
-
-  Future<void> _onCreate(Database db, int version) async {
-    await db.execute('''
-      CREATE TABLE menu_items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        category TEXT,
-        price REAL,
-        stock INTEGER DEFAULT 0,
-        reorder_level INTEGER DEFAULT 10,
-        unit TEXT DEFAULT 'pcs',
-        is_available INTEGER DEFAULT 1
-      )
-    ''');
-    await db.execute('''
-      CREATE TABLE ingredients (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        unit TEXT,
-        on_hand REAL,
-        reorder_level REAL,
-        unit_cost REAL
-      )
-    ''');
-    await db.execute('''
-      CREATE TABLE transactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        order_type TEXT,
-        total REAL,
-        payment_method TEXT,
-        created_at TEXT,
-        items_json TEXT
-      )
-    ''');
-    await db.execute('''
-  CREATE INDEX idx_transactions_created_at
-  ON transactions(created_at)
-''');
-    await db.execute('''
-      CREATE TABLE users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        role TEXT NOT NULL,
-        full_name TEXT
-      )
-    ''');
-
-    await _seed(db);
-  }
-
-  Future<void> _seed(Database db) async {
-    final batch = db.batch();
-
-    // Same accounts as the original desktop app.
-    batch.insert('users', {
+  Future<void> _seedUsers() async {
+    final batch = _db.batch();
+    batch.set(_users.doc(), {
       'username': 'owner',
       'password': 'owner123',
       'role': 'owner',
-      'full_name': 'Filipina S.'
+      'full_name': 'Filipina S.',
     });
-    batch.insert('users', {
+    batch.set(_users.doc(), {
       'username': 'cashier',
       'password': 'cashier123',
       'role': 'cashier',
-      'full_name': 'Cashier 1'
+      'full_name': 'Cashier 1',
     });
+    await batch.commit();
+  }
+
+  Future<void> _seedMenuIngredientsAndSales() async {
+    final batch = _db.batch();
 
     const menu = [
       ['Lomi Special', 'Lomi', 85.0, 45, 10],
@@ -106,14 +75,14 @@ class DBHelper {
       ['Extra Mami', 'Lomi', 40.0, 15, 5],
     ];
     for (final m in menu) {
-      batch.insert('menu_items', {
+      batch.set(_menuItems.doc(), {
         'name': m[0],
         'category': m[1],
         'price': m[2],
         'stock': m[3],
         'reorder_level': m[4],
         'unit': 'pcs',
-        'is_available': 1,
+        'is_available': true,
       });
     }
 
@@ -128,7 +97,7 @@ class DBHelper {
       ['Garlic', 'kg', 1.2, 0.5, 90.0],
     ];
     for (final i in ingredients) {
-      batch.insert('ingredients', {
+      batch.set(_ingredients.doc(), {
         'name': i[0],
         'unit': i[1],
         'on_hand': i[2],
@@ -137,197 +106,197 @@ class DBHelper {
       });
     }
 
-    // Seed 14 days of sample sales so the Dashboard / Sales Monitor /
-    // AI Forecast pages have something meaningful to show immediately.
+    // Seed 14 days of sample sales so Dashboard / Sales Monitor /
+    // AI Forecast have something meaningful to show immediately.
     final now = DateTime.now();
     final rnd = [36, 34, 40, 16, 39, 28, 45, 30, 22, 48, 33, 19, 41, 26];
     for (int d = 0; d < 14; d++) {
       final date = now.subtract(Duration(days: 13 - d));
       final qty = rnd[d];
       final total = qty * 85.0;
-      final items = jsonEncode([
-        {'name': 'Lomi Special', 'qty': qty, 'price': 85}
-      ]);
-      batch.insert('transactions', {
+      batch.set(_transactions.doc(), {
         'order_type': 'Dine-in',
         'total': total,
         'payment_method': 'Cash',
         'created_at':
             '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} 12:00:00',
-        'items_json': items,
+        'items': [
+          {'name': 'Lomi Special', 'qty': qty, 'price': 85},
+        ],
       });
     }
 
-    await batch.commit(noResult: true);
+    await batch.commit();
   }
 
   // ── Auth ──────────────────────────────────────────────────────────────
   Future<AppUser?> verifyLogin(String username, String password) async {
-    final db = await database;
-    final rows = await db.query(
-      'users',
-      where: 'username = ? AND password = ?',
-      whereArgs: [username, password],
-      limit: 1,
-    );
-    if (rows.isEmpty) return null;
-    return AppUser.fromMap(rows.first);
+    await _ensureSeeded();
+    final snap = await _users
+        .where('username', isEqualTo: username)
+        .where('password', isEqualTo: password)
+        .limit(1)
+        .get();
+    if (snap.docs.isEmpty) return null;
+    return AppUser.fromFirestore(snap.docs.first);
   }
 
   Future<List<AppUser>> getUsers() async {
-    final db = await database;
-    final rows = await db.query('users', orderBy: 'role DESC, username');
-    return rows.map(AppUser.fromMap).toList();
+    await _ensureSeeded();
+    final snap = await _users.get();
+    final list = snap.docs.map(AppUser.fromFirestore).toList();
+    // role DESC, username ASC — same ordering as the old SQL query,
+    // done client-side to avoid needing a composite index.
+    list.sort((a, b) {
+      final roleCmp = b.role.compareTo(a.role);
+      return roleCmp != 0 ? roleCmp : a.username.compareTo(b.username);
+    });
+    return list;
   }
 
-  Future<int> addUser(AppUser u) async {
-    final db = await database;
-    return db.insert('users', u.toMap());
+  Future<String> addUser(AppUser u) async {
+    await _ensureSeeded();
+    final existing =
+        await _users.where('username', isEqualTo: u.username).limit(1).get();
+    if (existing.docs.isNotEmpty) {
+      throw Exception('Username "${u.username}" already exists.');
+    }
+    final ref = await _users.add(u.toFirestore());
+    return ref.id;
   }
 
-  Future<void> deleteUser(int id) async {
-    final db = await database;
-    await db.delete('users', where: 'id = ?', whereArgs: [id]);
+  Future<void> deleteUser(String id) async {
+    await _users.doc(id).delete();
   }
 
-  Future<void> updateUserPassword(int id, String newPassword) async {
-    final db = await database;
-    await db.update('users', {'password': newPassword},
-        where: 'id = ?', whereArgs: [id]);
+  Future<void> updateUserPassword(String id, String newPassword) async {
+    await _users.doc(id).update({'password': newPassword});
   }
 
   // ── Menu items ────────────────────────────────────────────────────────
   Future<List<MenuItem>> getMenuItems({String? category}) async {
-    final db = await database;
-    final rows = (category == null || category == 'All')
-        ? await db.query('menu_items', orderBy: 'category, name')
-        : await db.query('menu_items',
-            where: 'category = ?', whereArgs: [category], orderBy: 'name');
-    return rows.map(MenuItem.fromMap).toList();
+    await _ensureSeeded();
+    Query<Map<String, dynamic>> q = _menuItems;
+    if (category != null && category != 'All') {
+      q = q.where('category', isEqualTo: category);
+    }
+    final snap = await q.get();
+    final items = snap.docs.map(MenuItem.fromFirestore).toList();
+    items.sort((a, b) {
+      final c = a.category.compareTo(b.category);
+      return c != 0 ? c : a.name.compareTo(b.name);
+    });
+    return items;
   }
 
-  Future<int> addMenuItem(MenuItem item) async {
-    final db = await database;
-    return db.insert('menu_items', item.toMap());
+  Future<String> addMenuItem(MenuItem item) async {
+    final ref = await _menuItems.add(item.toFirestore());
+    return ref.id;
   }
 
   Future<void> updateMenuItem(MenuItem item) async {
-    final db = await database;
-    await db.update('menu_items', item.toMap(),
-        where: 'id = ?', whereArgs: [item.id]);
+    await _menuItems.doc(item.id).update(item.toFirestore());
   }
 
-  Future<void> deleteMenuItem(int id) async {
-    final db = await database;
-    await db.delete('menu_items', where: 'id = ?', whereArgs: [id]);
+  Future<void> deleteMenuItem(String id) async {
+    await _menuItems.doc(id).delete();
   }
 
-  Future<void> deductStock(int id, int qty) async {
-    final db = await database;
-    await db.rawUpdate(
-        'UPDATE menu_items SET stock = MAX(0, stock - ?) WHERE id = ?',
-        [qty, id]);
+  Future<void> deductStock(String id, int qty) async {
+    final ref = _menuItems.doc(id);
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      final current = (snap.data()?['stock'] as num?)?.toInt() ?? 0;
+      final updated = current - qty;
+      tx.update(ref, {'stock': updated < 0 ? 0 : updated});
+    });
   }
 
   // ── Ingredients ───────────────────────────────────────────────────────
   Future<List<Ingredient>> getIngredients() async {
-    final db = await database;
-    final rows = await db.query('ingredients', orderBy: 'name');
-    return rows.map(Ingredient.fromMap).toList();
+    await _ensureSeeded();
+    final snap = await _ingredients.get();
+    final list = snap.docs.map(Ingredient.fromFirestore).toList();
+    list.sort((a, b) => a.name.compareTo(b.name));
+    return list;
   }
 
   Future<List<String>> getLowStockIngredientNames() async {
-    final db = await database;
-    final rows = await db.rawQuery(
-        'SELECT name FROM ingredients WHERE on_hand <= reorder_level');
-    return rows.map((r) => r['name'] as String).toList();
+    await _ensureSeeded();
+    // Firestore can't compare two fields (on_hand <= reorder_level) in a
+    // query, so this filters client-side — fine at this data scale.
+    final snap = await _ingredients.get();
+    return snap.docs
+        .map(Ingredient.fromFirestore)
+        .where((i) => i.onHand <= i.reorderLevel)
+        .map((i) => i.name)
+        .toList();
   }
 
-  Future<int> addIngredient(Ingredient ing) async {
-    final db = await database;
-    return db.insert('ingredients', ing.toMap());
+  Future<String> addIngredient(Ingredient ing) async {
+    final ref = await _ingredients.add(ing.toFirestore());
+    return ref.id;
   }
 
   Future<void> updateIngredient(Ingredient ing) async {
-    final db = await database;
-    await db.update('ingredients', ing.toMap(),
-        where: 'id = ?', whereArgs: [ing.id]);
+    await _ingredients.doc(ing.id).update(ing.toFirestore());
   }
 
-  Future<void> deleteIngredient(int id) async {
-    final db = await database;
-    await db.delete('ingredients', where: 'id = ?', whereArgs: [id]);
+  Future<void> deleteIngredient(String id) async {
+    await _ingredients.doc(id).delete();
   }
 
   // ── Transactions ──────────────────────────────────────────────────────
-  Future<int> recordTransaction({
+  Future<String> recordTransaction({
     required String orderType,
     required double total,
     required String paymentMethod,
     required List<CartItem> items,
   }) async {
-    final db = await database;
+    await _ensureSeeded();
     final now = DateTime.now();
     final createdAt =
         '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} '
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
 
-    final id = await db.insert('transactions', {
+    final ref = await _transactions.add({
       'order_type': orderType,
       'total': total,
       'payment_method': paymentMethod,
       'created_at': createdAt,
-      'items_json': jsonEncode(items
+      'items': items
           .map((i) => {'name': i.name, 'qty': i.qty, 'price': i.price})
-          .toList()),
+          .toList(),
     });
 
     for (final item in items) {
       await deductStock(item.menuItemId, item.qty);
     }
-    return id;
+    return ref.id;
   }
 
   Future<List<SaleTransaction>> getTransactions({int limit = 50}) async {
-  final db = await database;
-
-  final rows = await db.query(
-    'transactions',
-    orderBy: 'id DESC',
-    limit: limit,
-  );
-
-  return rows.map((m) {
-    final rawItems = jsonDecode(m['items_json'] as String) as List;
-
-    final items = rawItems.map((e) {
-      return CartItem(
-        menuItemId: 0,
-        name: e['name'],
-        price: (e['price'] as num).toDouble(),
-        qty: e['qty'],
-      );
-    }).toList();
-
-    return SaleTransaction(
-      id: m['id'] as int,
-      orderType: m['order_type'] as String,
-      total: (m['total'] as num).toDouble(),
-      paymentMethod: m['payment_method'] as String,
-      createdAt: m['created_at'] as String,
-      items: items,
-    );
-  }).toList();
-}
+    await _ensureSeeded();
+    final snap = await _transactions
+        .orderBy('created_at', descending: true)
+        .limit(limit)
+        .get();
+    return snap.docs.map(SaleTransaction.fromFirestore).toList();
+  }
 
   Future<int> getTodayOrderCount() async {
+    await _ensureSeeded();
     final now = DateTime.now();
-    final todayStr =
-        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-    final db = await database;
-    final rows = await db.rawQuery(
-        "SELECT COUNT(*) as c FROM transactions WHERE created_at LIKE ?",
-        ['$todayStr%']);
-    return Sqflite.firstIntValue(rows) ?? 0;
+    final tomorrow = now.add(const Duration(days: 1));
+    String ymd(DateTime d) =>
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+    // Single-field range query (both clauses on created_at), so no
+    // composite index is needed.
+    final snap = await _transactions
+        .where('created_at', isGreaterThanOrEqualTo: '${ymd(now)} 00:00:00')
+        .where('created_at', isLessThan: '${ymd(tomorrow)} 00:00:00')
+        .get();
+    return snap.docs.length;
   }
 }

@@ -1,10 +1,15 @@
-/// Domain models — mirror the original SQLite schema used by the
-/// CustomTkinter desktop app (menu_items, ingredients, transactions, users)
-/// so the Flutter rebuild is a drop-in replacement.
+/// Domain models — now backed by Cloud Firestore instead of SQLite.
+/// Document IDs are Firestore's auto-generated String IDs (previously
+/// SQLite's auto-increment int primary keys), so every `id` field below
+/// is `String?` instead of `int?`. Nothing else about the shapes changed,
+/// so screens that only ever pass `item.id` through to DBHelper calls
+/// keep working without edits.
 library models;
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class MenuItem {
-  final int? id;
+  final String? id;
   final String name;
   final String category;
   final double price;
@@ -25,7 +30,7 @@ class MenuItem {
   });
 
   MenuItem copyWith({
-    int? id,
+    String? id,
     String? name,
     String? category,
     double? price,
@@ -46,27 +51,31 @@ class MenuItem {
     );
   }
 
-  Map<String, dynamic> toMap() => {
-        if (id != null) 'id': id,
+  /// Firestore document fields (the doc ID itself is stored separately,
+  /// so `id` is intentionally excluded here).
+  Map<String, dynamic> toFirestore() => {
         'name': name,
         'category': category,
         'price': price,
         'stock': stock,
         'reorder_level': reorderLevel,
         'unit': unit,
-        'is_available': isAvailable ? 1 : 0,
+        'is_available': isAvailable,
       };
 
-  factory MenuItem.fromMap(Map<String, dynamic> m) => MenuItem(
-        id: m['id'] as int?,
-        name: m['name'] as String,
-        category: m['category'] as String,
-        price: (m['price'] as num).toDouble(),
-        stock: m['stock'] as int,
-        reorderLevel: m['reorder_level'] as int,
-        unit: m['unit'] as String,
-        isAvailable: (m['is_available'] as int) == 1,
-      );
+  factory MenuItem.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final m = doc.data()!;
+    return MenuItem(
+      id: doc.id,
+      name: m['name'] as String,
+      category: m['category'] as String,
+      price: (m['price'] as num).toDouble(),
+      stock: (m['stock'] as num).toInt(),
+      reorderLevel: (m['reorder_level'] as num?)?.toInt() ?? 10,
+      unit: m['unit'] as String? ?? 'pcs',
+      isAvailable: m['is_available'] as bool? ?? true,
+    );
+  }
 
   String get status {
     if (stock <= 0) return 'Out';
@@ -76,7 +85,7 @@ class MenuItem {
 }
 
 class Ingredient {
-  final int? id;
+  final String? id;
   final String name;
   final String unit;
   final double onHand;
@@ -93,7 +102,7 @@ class Ingredient {
   });
 
   Ingredient copyWith({
-    int? id,
+    String? id,
     String? name,
     String? unit,
     double? onHand,
@@ -110,8 +119,7 @@ class Ingredient {
     );
   }
 
-  Map<String, dynamic> toMap() => {
-        if (id != null) 'id': id,
+  Map<String, dynamic> toFirestore() => {
         'name': name,
         'unit': unit,
         'on_hand': onHand,
@@ -119,14 +127,17 @@ class Ingredient {
         'unit_cost': unitCost,
       };
 
-  factory Ingredient.fromMap(Map<String, dynamic> m) => Ingredient(
-        id: m['id'] as int?,
-        name: m['name'] as String,
-        unit: m['unit'] as String,
-        onHand: (m['on_hand'] as num).toDouble(),
-        reorderLevel: (m['reorder_level'] as num).toDouble(),
-        unitCost: (m['unit_cost'] as num).toDouble(),
-      );
+  factory Ingredient.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final m = doc.data()!;
+    return Ingredient(
+      id: doc.id,
+      name: m['name'] as String,
+      unit: m['unit'] as String,
+      onHand: (m['on_hand'] as num).toDouble(),
+      reorderLevel: (m['reorder_level'] as num).toDouble(),
+      unitCost: (m['unit_cost'] as num).toDouble(),
+    );
+  }
 
   String get status {
     if (onHand <= 0) return 'Out';
@@ -136,7 +147,7 @@ class Ingredient {
 }
 
 class CartItem {
-  final int menuItemId;
+  final String menuItemId;
   final String name;
   final double price;
   int qty;
@@ -152,11 +163,12 @@ class CartItem {
 }
 
 class SaleTransaction {
-  final int? id;
+  final String? id;
   final String orderType;
   final double total;
   final String paymentMethod;
-  final String createdAt; // ISO-ish string, same format as original app
+  final String createdAt; // 'yyyy-MM-dd HH:mm:ss', zero-padded so string
+  // ordering/range queries on this field match chronological order.
   final List<CartItem> items;
 
   const SaleTransaction({
@@ -167,10 +179,47 @@ class SaleTransaction {
     required this.createdAt,
     required this.items,
   });
+
+  Map<String, dynamic> toFirestore() => {
+        'order_type': orderType,
+        'total': total,
+        'payment_method': paymentMethod,
+        'created_at': createdAt,
+        'items': items
+            .map((i) => {'name': i.name, 'qty': i.qty, 'price': i.price})
+            .toList(),
+      };
+
+  factory SaleTransaction.fromFirestore(
+      DocumentSnapshot<Map<String, dynamic>> doc) {
+    final m = doc.data()!;
+    final rawItems = (m['items'] as List<dynamic>? ?? []);
+    final items = rawItems.map((e) {
+      final map = Map<String, dynamic>.from(e as Map);
+      return CartItem(
+        // The original menu item id isn't needed once a sale is recorded
+        // (Dashboard/Sales/Forecast only read name/qty/price), so this
+        // mirrors the placeholder the old SQLite version used.
+        menuItemId: '',
+        name: map['name'] as String,
+        price: (map['price'] as num).toDouble(),
+        qty: (map['qty'] as num).toInt(),
+      );
+    }).toList();
+
+    return SaleTransaction(
+      id: doc.id,
+      orderType: m['order_type'] as String,
+      total: (m['total'] as num).toDouble(),
+      paymentMethod: m['payment_method'] as String,
+      createdAt: m['created_at'] as String,
+      items: items,
+    );
+  }
 }
 
 class AppUser {
-  final int? id;
+  final String? id;
   final String username;
   final String password;
   final String role; // 'owner' | 'cashier'
@@ -184,19 +233,21 @@ class AppUser {
     required this.fullName,
   });
 
-  Map<String, dynamic> toMap() => {
-        if (id != null) 'id': id,
+  Map<String, dynamic> toFirestore() => {
         'username': username,
         'password': password,
         'role': role,
         'full_name': fullName,
       };
 
-  factory AppUser.fromMap(Map<String, dynamic> m) => AppUser(
-        id: m['id'] as int?,
-        username: m['username'] as String,
-        password: m['password'] as String,
-        role: m['role'] as String,
-        fullName: m['full_name'] as String,
-      );
+  factory AppUser.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final m = doc.data()!;
+    return AppUser(
+      id: doc.id,
+      username: m['username'] as String,
+      password: m['password'] as String,
+      role: m['role'] as String,
+      fullName: m['full_name'] as String,
+    );
+  }
 }
