@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "72939033085",
+    "project_id": "final-project-8f5cf",
+    "storage_bucket": "final-project-8f5cf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:72939033085:android:1a3f754f5adadf2f2f0994",
+        "android_client_info": {
+          "package_name": "com.example.filipees_bistro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDamZkjhXFGRQmD-6akrwcxG-GbITcbsMQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
