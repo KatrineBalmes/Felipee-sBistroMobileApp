@@ -102,7 +102,7 @@ class _SalesPageState extends State<SalesPage> {
                                   // crowd into each other, however many bars
                                   // there are — and shorten "07-19" to "7/19"
                                   // so each label takes less horizontal room.
-                                  final maxLabels = 6;
+                                  const maxLabels = 6;
                                   final step = (_daily.length / maxLabels).ceil().clamp(1, 999);
                                   final isFirst = i == 0;
                                   final isLast = i == _daily.length - 1;

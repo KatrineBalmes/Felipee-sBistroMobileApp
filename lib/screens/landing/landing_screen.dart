@@ -491,10 +491,12 @@ class _MenuSectionState extends State<_MenuSection> {
 
   Future<void> _load() async {
     final items = await DBHelper.instance.getMenuItems();
-    if (mounted) setState(() {
+    if (mounted) {
+      setState(() {
       _all = items;
       _loading = false;
     });
+    }
   }
 
   List<MenuItem> get _filtered =>

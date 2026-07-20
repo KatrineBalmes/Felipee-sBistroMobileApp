@@ -104,7 +104,7 @@ class _InventoryPageState extends State<InventoryPage> {
           ),
           const SizedBox(height: 12),
           if (!widget.canEdit)
-            _NoticeBanner(
+            const _NoticeBanner(
               icon: Icons.visibility,
               color: AppColors.accentBlue,
               text: 'View Only — Contact the owner to make changes to inventory.',
@@ -477,7 +477,7 @@ class _MenuItemDialogState extends State<_MenuItemDialog> {
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Available for sale', style: TextStyle(fontSize: 13)),
                 value: _available,
-                activeColor: AppColors.accent,
+                activeThumbColor: AppColors.accent,
                 onChanged: (v) => setState(() => _available = v),
               ),
               const SizedBox(height: 12),
