@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 import '../../data/db_helper.dart';
+import '../../models/models.dart';
 import '../cashier/cashier_shell.dart';
 import '../owner/owner_shell.dart';
 
@@ -18,6 +19,14 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscure = true;
   bool _loading = false;
   String? _error;
+  Branch? _selectedBranch;
+  late Future<List<Branch>> _branchesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _branchesFuture = DBHelper.instance.getBranches();
+  }
 
   @override
   void dispose() {
@@ -29,6 +38,11 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _attemptLogin() async {
     final username = _userCtrl.text.trim();
     final password = _passCtrl.text.trim();
+
+    if (_selectedBranch == null) {
+      setState(() => _error = 'Please select your branch.');
+      return;
+    }
     if (username.isEmpty || password.isEmpty) {
       setState(() => _error = 'Please enter username and password.');
       return;
@@ -49,11 +63,22 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    // Cashiers/staff must be assigned to the branch they picked. Owners
+    // oversee every branch, so they're exempt from this check — but they
+    // still had to pick a branch above, just so the dropdown is required
+    // for everyone up front.
+    if (user.role != 'owner' && user.branchId != _selectedBranch!.id) {
+      setState(() => _error = 'This account is not registered under ${_selectedBranch!.name}.');
+      _passCtrl.clear();
+      return;
+    }
+
+    final branchName = _selectedBranch!.name;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => user.role == 'owner'
-            ? OwnerShell(fullName: user.fullName)
-            : CashierShell(fullName: user.fullName),
+            ? OwnerShell(fullName: user.fullName, branchName: branchName)
+            : CashierShell(fullName: user.fullName, branchName: branchName),
       ),
     );
   }
@@ -95,12 +120,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                   fontWeight: FontWeight.w700,
                                   fontSize: 11,
                                   letterSpacing: 1.4)),
-                          const SizedBox(height: 2),
-                          const Text('Poblacion Branch',
-                              style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                           const SizedBox(height: 24),
                           const Divider(),
                           const SizedBox(height: 20),
+                          _BranchDropdownField(
+                            branchesFuture: _branchesFuture,
+                            selected: _selectedBranch,
+                            onChanged: (b) => setState(() => _selectedBranch = b),
+                          ),
+                          const SizedBox(height: 14),
                           _LabeledField(
                             label: 'Username',
                             controller: _userCtrl,
@@ -142,6 +170,62 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _BranchDropdownField extends StatelessWidget {
+  final Future<List<Branch>> branchesFuture;
+  final Branch? selected;
+  final ValueChanged<Branch?> onChanged;
+  const _BranchDropdownField({
+    required this.branchesFuture,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Branch', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+        const SizedBox(height: 6),
+        FutureBuilder<List<Branch>>(
+          future: branchesFuture,
+          builder: (context, snap) {
+            if (snap.connectionState != ConnectionState.done) {
+              return const SizedBox(
+                height: 48,
+                child: Center(
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
+                  ),
+                ),
+              );
+            }
+            if (snap.hasError) {
+              return Text('Could not load branches: ${snap.error}',
+                  style: const TextStyle(color: AppColors.accentRed, fontSize: 12));
+            }
+            final branches = snap.data ?? [];
+            return DropdownButtonFormField<Branch>(
+              initialValue: selected,
+              isExpanded: true,
+              dropdownColor: AppColors.bgCard,
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: const InputDecoration(hintText: 'Select your branch...'),
+              items: [
+                for (final b in branches)
+                  DropdownMenuItem(value: b, child: Text(b.name)),
+              ],
+              onChanged: onChanged,
+            );
+          },
+        ),
+      ],
     );
   }
 }

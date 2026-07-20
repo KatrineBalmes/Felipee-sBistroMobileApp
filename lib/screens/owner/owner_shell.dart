@@ -10,10 +10,12 @@ import 'users_page.dart';
 
 class OwnerShell extends StatelessWidget {
   final String fullName;
+  final String branchName;
 
   const OwnerShell({
     super.key,
     required this.fullName,
+    required this.branchName,
   });
 
   @override
@@ -23,6 +25,7 @@ class OwnerShell extends StatelessWidget {
       roleLabel: '👑 OWNER',
       roleColor: AppColors.accent2,
       fullName: fullName,
+      branchName: branchName,
       items: const [
         ShellNavItem(
           icon: Icons.dashboard_outlined,

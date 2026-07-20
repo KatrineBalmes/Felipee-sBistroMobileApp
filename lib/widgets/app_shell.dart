@@ -16,6 +16,7 @@ class AppShell extends StatefulWidget {
   final String appTitle;
   final String roleLabel;
   final String fullName;
+  final String branchName;
   final List<ShellNavItem> items;
   final Color roleColor;
   const AppShell({
@@ -23,6 +24,7 @@ class AppShell extends StatefulWidget {
     required this.appTitle,
     required this.roleLabel,
     required this.fullName,
+    required this.branchName,
     required this.items,
     this.roleColor = AppColors.accentBlue,
   });
@@ -75,6 +77,7 @@ class _AppShellState extends State<AppShell> {
               roleLabel: widget.roleLabel,
               roleColor: widget.roleColor,
               fullName: widget.fullName,
+              branchName: widget.branchName,
               items: widget.items,
               index: _index,
               onSelect: (i) => setState(() => _index = i),
@@ -195,7 +198,7 @@ class _BottomBar extends StatelessWidget {
 }
 
 class _SideRail extends StatelessWidget {
-  final String appTitle, roleLabel, fullName;
+  final String appTitle, roleLabel, fullName, branchName;
   final Color roleColor;
   final List<ShellNavItem> items;
   final int index;
@@ -207,6 +210,7 @@ class _SideRail extends StatelessWidget {
     required this.roleLabel,
     required this.roleColor,
     required this.fullName,
+    required this.branchName,
     required this.items,
     required this.index,
     required this.onSelect,
@@ -295,8 +299,8 @@ class _SideRail extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Poblacion Branch',
-                      style: TextStyle(color: AppColors.accent, fontSize: 11, fontWeight: FontWeight.w700)),
+                  Text(branchName,
+                      style: const TextStyle(color: AppColors.accent, fontSize: 11, fontWeight: FontWeight.w700)),
                   Text(fullName, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                   const SizedBox(height: 10),
                   SizedBox(

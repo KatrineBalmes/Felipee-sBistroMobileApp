@@ -224,6 +224,7 @@ class AppUser {
   final String password;
   final String role; // 'owner' | 'cashier'
   final String fullName;
+  final String? branchId; // Firestore doc id of the assigned branch
 
   const AppUser({
     this.id,
@@ -231,6 +232,7 @@ class AppUser {
     required this.password,
     required this.role,
     required this.fullName,
+    this.branchId,
   });
 
   Map<String, dynamic> toFirestore() => {
@@ -238,6 +240,7 @@ class AppUser {
         'password': password,
         'role': role,
         'full_name': fullName,
+        'branch_id': branchId,
       };
 
   factory AppUser.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -248,6 +251,39 @@ class AppUser {
       password: m['password'] as String,
       role: m['role'] as String,
       fullName: m['full_name'] as String,
+      branchId: m['branch_id'] as String?,
+    );
+  }
+}
+
+/// A physical branch/outlet (mirrors the `branches` Firestore collection
+/// in the ERD: branchId, branchName, location, contactNumber).
+class Branch {
+  final String? id;
+  final String name;
+  final String location;
+  final String contactNumber;
+
+  const Branch({
+    this.id,
+    required this.name,
+    required this.location,
+    required this.contactNumber,
+  });
+
+  Map<String, dynamic> toFirestore() => {
+        'name': name,
+        'location': location,
+        'contact_number': contactNumber,
+      };
+
+  factory Branch.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final m = doc.data()!;
+    return Branch(
+      id: doc.id,
+      name: m['name'] as String,
+      location: m['location'] as String? ?? '',
+      contactNumber: m['contact_number'] as String? ?? '',
     );
   }
 }

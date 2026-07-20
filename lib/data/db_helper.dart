@@ -26,6 +26,8 @@ class DBHelper {
       _db.collection('transactions');
   CollectionReference<Map<String, dynamic>> get _users =>
       _db.collection('users');
+  CollectionReference<Map<String, dynamic>> get _branches =>
+      _db.collection('branches');
 
   // Runs once per app session: seeds default accounts/menu/ingredients/
   // sample sales the first time the Firestore project is empty, mirroring
@@ -34,6 +36,10 @@ class DBHelper {
   Future<void> _ensureSeeded() => _seedFuture ??= _seedIfEmpty();
 
   Future<void> _seedIfEmpty() async {
+    final branchesSnap = await _branches.limit(1).get();
+    if (branchesSnap.docs.isEmpty) {
+      await _seedBranches();
+    }
     final usersSnap = await _users.limit(1).get();
     if (usersSnap.docs.isEmpty) {
       await _seedUsers();
@@ -44,6 +50,26 @@ class DBHelper {
     }
   }
 
+  // Fixed, well-known doc IDs so seeded users can reference a branch
+  // deterministically without needing to look up its generated ID first.
+  static const _poblacionBranchId = 'B001';
+  static const _sanRoqueBranchId = 'B002';
+
+  Future<void> _seedBranches() async {
+    final batch = _db.batch();
+    batch.set(_branches.doc(_poblacionBranchId), {
+      'name': 'Poblacion Branch',
+      'location': 'Poblacion, Bauan, Batangas',
+      'contact_number': '0956 544 5021',
+    });
+    batch.set(_branches.doc(_sanRoqueBranchId), {
+      'name': 'San Roque Branch',
+      'location': 'San Roque, Bauan, Batangas',
+      'contact_number': '0956 544 5021',
+    });
+    await batch.commit();
+  }
+
   Future<void> _seedUsers() async {
     final batch = _db.batch();
     batch.set(_users.doc(), {
@@ -51,12 +77,21 @@ class DBHelper {
       'password': 'owner123',
       'role': 'owner',
       'full_name': 'Filipina S.',
+      'branch_id': _poblacionBranchId,
     });
     batch.set(_users.doc(), {
       'username': 'cashier',
       'password': 'cashier123',
       'role': 'cashier',
       'full_name': 'Cashier 1',
+      'branch_id': _poblacionBranchId,
+    });
+    batch.set(_users.doc(), {
+      'username': 'cashier2',
+      'password': 'cashier123',
+      'role': 'cashier',
+      'full_name': 'Cashier 2',
+      'branch_id': _sanRoqueBranchId,
     });
     await batch.commit();
   }
@@ -127,6 +162,15 @@ class DBHelper {
     }
 
     await batch.commit();
+  }
+
+  // ── Branches ──────────────────────────────────────────────────────────
+  Future<List<Branch>> getBranches() async {
+    await _ensureSeeded();
+    final snap = await _branches.get();
+    final list = snap.docs.map(Branch.fromFirestore).toList();
+    list.sort((a, b) => a.name.compareTo(b.name));
+    return list;
   }
 
   // ── Auth ──────────────────────────────────────────────────────────────
