@@ -61,6 +61,7 @@ class MenuItem {
         'reorder_level': reorderLevel,
         'unit': unit,
         'is_available': isAvailable,
+        'branchName': name,
       };
 
   factory MenuItem.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -278,12 +279,12 @@ class Branch {
       };
 
   factory Branch.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final m = doc.data()!;
+    final m = doc.data() ?? {};
     return Branch(
       id: doc.id,
-      name: m['name'] as String,
+      name: m['branchName'] as String? ?? '',
       location: m['location'] as String? ?? '',
-      contactNumber: m['contact_number'] as String? ?? '',
+      contactNumber: m['contactNumber']?.toString() ?? '',
     );
   }
 }
