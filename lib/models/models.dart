@@ -223,9 +223,9 @@ class AppUser {
   final String? id;
   final String username;
   final String password;
-  final String role; // 'owner' | 'cashier'
+  final String role;
   final String fullName;
-  final String? branchId; // Firestore doc id of the assigned branch
+  final String? branchId;
 
   const AppUser({
     this.id,
@@ -241,18 +241,18 @@ class AppUser {
         'password': password,
         'role': role,
         'full_name': fullName,
-        'branch_id': branchId,
+        'branchId': branchId,
       };
 
   factory AppUser.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final m = doc.data()!;
+    final m = doc.data() ?? {};
     return AppUser(
       id: doc.id,
       username: m['username'] as String,
       password: m['password'] as String,
       role: m['role'] as String,
       fullName: m['full_name'] as String,
-      branchId: m['branch_id'] as String?,
+      branchId: m['branchId'] as String?,
     );
   }
 }
@@ -273,9 +273,9 @@ class Branch {
   });
 
   Map<String, dynamic> toFirestore() => {
-        'name': name,
+        'branchName': name,
         'location': location,
-        'contact_number': contactNumber,
+        'contactNumber': contactNumber,
       };
 
   factory Branch.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
