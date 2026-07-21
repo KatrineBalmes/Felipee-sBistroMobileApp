@@ -13,6 +13,7 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   bool _loading = true;
+  String? _error;
   double _todaySales = 0;
   int _todayOrders = 0;
   int _menuCount = 0;
@@ -26,48 +27,86 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _load() async {
-  setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
 
-  final results = await Future.wait([
-    DBHelper.instance.getTransactions(),
-    DBHelper.instance.getMenuItems(),
-    DBHelper.instance.getLowStockIngredientNames(),
-  ]);
+    try {
+      final results = await Future.wait([
+        DBHelper.instance.getTransactions(),
+        DBHelper.instance.getMenuItems(),
+        DBHelper.instance.getLowStockIngredientNames(),
+      ]);
 
-  final txns = results[0] as List<SaleTransaction>;
-  final menu = results[1] as List<MenuItem>;
-  final low = results[2] as List<String>;
+      final txns = results[0] as List<SaleTransaction>;
+      final menu = results[1] as List<MenuItem>;
+      final low = results[2] as List<String>;
 
-  final now = DateTime.now();
+      final now = DateTime.now();
 
-  final todayStr =
-      '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final todayStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
-  final todayTxns =
-      txns.where((t) => t.createdAt.startsWith(todayStr)).toList();
+      final todayTxns =
+          txns.where((t) => t.createdAt.startsWith(todayStr)).toList();
 
-  if (!mounted) return;
+      if (!mounted) return;
 
-  setState(() {
-    _todaySales = todayTxns.fold(
-      0.0,
-      (sum, t) => sum + t.total,
-    );
+      setState(() {
+        _todaySales = todayTxns.fold(
+          0.0,
+          (sum, t) => sum + t.total,
+        );
 
-    _todayOrders = todayTxns.length;
-    _menuCount = menu.length;
-    _lowStock = low;
-    _recent = txns.take(6).toList();
+        _todayOrders = todayTxns.length;
+        _menuCount = menu.length;
+        _lowStock = low;
+        _recent = txns.take(6).toList();
 
-    _loading = false;
-  });
-}
+        _loading = false;
+      });
+    } catch (e) {
+      debugPrint('Dashboard load failed: $e');
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator(color: AppColors.accent));
     }
+
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, color: AppColors.warning, size: 32),
+              const SizedBox(height: 10),
+              Text(
+                'Could not load dashboard:\n$_error',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.warning, fontSize: 12),
+              ),
+              const SizedBox(height: 14),
+              ElevatedButton(
+                onPressed: _load,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final wide = isWide(context);
     final statCards = [
       _StatCard(icon: Icons.payments, label: "Today's Sales", value: peso(_todaySales), color: AppColors.accentGreen),

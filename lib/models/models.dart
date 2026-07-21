@@ -61,17 +61,16 @@ class MenuItem {
         'reorder_level': reorderLevel,
         'unit': unit,
         'is_available': isAvailable,
-        'branchName': name,
       };
 
   factory MenuItem.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final m = doc.data()!;
+    final m = doc.data() ?? {};
     return MenuItem(
       id: doc.id,
-      name: m['name'] as String,
-      category: m['category'] as String,
-      price: (m['price'] as num).toDouble(),
-      stock: (m['stock'] as num).toInt(),
+      name: m['name'] as String? ?? '',
+      category: m['category'] as String? ?? '',
+      price: (m['price'] as num?)?.toDouble() ?? 0,
+      stock: (m['stock'] as num?)?.toInt() ?? 0,
       reorderLevel: (m['reorder_level'] as num?)?.toInt() ?? 10,
       unit: m['unit'] as String? ?? 'pcs',
       isAvailable: m['is_available'] as bool? ?? true,
@@ -129,14 +128,14 @@ class Ingredient {
       };
 
   factory Ingredient.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final m = doc.data()!;
+    final m = doc.data() ?? {};
     return Ingredient(
       id: doc.id,
-      name: m['name'] as String,
-      unit: m['unit'] as String,
-      onHand: (m['on_hand'] as num).toDouble(),
-      reorderLevel: (m['reorder_level'] as num).toDouble(),
-      unitCost: (m['unit_cost'] as num).toDouble(),
+      name: m['name'] as String? ?? '',
+      unit: m['unit'] as String? ?? '',
+      onHand: (m['on_hand'] as num?)?.toDouble() ?? 0,
+      reorderLevel: (m['reorder_level'] as num?)?.toDouble() ?? 0,
+      unitCost: (m['unit_cost'] as num?)?.toDouble() ?? 0,
     );
   }
 
@@ -191,29 +190,59 @@ class SaleTransaction {
             .toList(),
       };
 
+  /// Parses a Firestore `items` field into a list of raw maps.
+  ///
+  /// Normally Firestore stores this as a real array of maps. Some
+  /// documents in this project were saved with `items` as a *string*
+  /// that looks like `"[{'name': 'Menu Item 15', 'qty': 3, 'price': 101}]"`
+  /// (e.g. entered manually in the console, or written via `.toString()`
+  /// somewhere instead of storing an actual array). This falls back to
+  /// parsing that text form with a regex so those older/bad rows don't
+  /// crash the whole dashboard.
+  static List<Map<String, dynamic>> _parseItems(dynamic raw) {
+    if (raw is List) {
+      return raw
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    }
+    if (raw is String) {
+      final entryPattern = RegExp(
+        r"\{\s*'name'\s*:\s*'([^']*)'\s*,\s*'qty'\s*:\s*(\d+)\s*,\s*'price'\s*:\s*([\d.]+)\s*\}",
+      );
+      final matches = entryPattern.allMatches(raw);
+      return matches
+          .map((m) => {
+                'name': m.group(1) ?? '',
+                'qty': int.tryParse(m.group(2) ?? '0') ?? 0,
+                'price': double.tryParse(m.group(3) ?? '0') ?? 0,
+              })
+          .toList();
+    }
+    return [];
+  }
+
   factory SaleTransaction.fromFirestore(
       DocumentSnapshot<Map<String, dynamic>> doc) {
-    final m = doc.data()!;
-    final rawItems = (m['items'] as List<dynamic>? ?? []);
-    final items = rawItems.map((e) {
-      final map = Map<String, dynamic>.from(e as Map);
+    final m = doc.data() ?? {};
+    final rawItems = _parseItems(m['items']);
+    final items = rawItems.map((map) {
       return CartItem(
         // The original menu item id isn't needed once a sale is recorded
         // (Dashboard/Sales/Forecast only read name/qty/price), so this
         // mirrors the placeholder the old SQLite version used.
         menuItemId: '',
-        name: map['name'] as String,
-        price: (map['price'] as num).toDouble(),
-        qty: (map['qty'] as num).toInt(),
+        name: map['name'] as String? ?? '',
+        price: (map['price'] as num?)?.toDouble() ?? 0,
+        qty: (map['qty'] as num?)?.toInt() ?? 0,
       );
     }).toList();
 
     return SaleTransaction(
       id: doc.id,
-      orderType: m['order_type'] as String,
-      total: (m['total'] as num).toDouble(),
-      paymentMethod: m['payment_method'] as String,
-      createdAt: m['created_at'] as String,
+      orderType: m['order_type'] as String? ?? '',
+      total: (m['total'] as num?)?.toDouble() ?? 0,
+      paymentMethod: m['payment_method'] as String? ?? '',
+      createdAt: m['created_at'] as String? ?? '',
       items: items,
     );
   }
@@ -223,9 +252,9 @@ class AppUser {
   final String? id;
   final String username;
   final String password;
-  final String role;
+  final String role; // 'owner' | 'cashier'
   final String fullName;
-  final String? branchId;
+  final String? branchId; // Firestore doc id of the assigned branch
 
   const AppUser({
     this.id,
@@ -248,10 +277,10 @@ class AppUser {
     final m = doc.data() ?? {};
     return AppUser(
       id: doc.id,
-      username: m['username'] as String,
-      password: m['password'] as String,
-      role: m['role'] as String,
-      fullName: m['full_name'] as String,
+      username: m['username'] as String? ?? '',
+      password: m['password'] as String? ?? '',
+      role: m['role'] as String? ?? '',
+      fullName: m['full_name'] as String? ?? '',
       branchId: m['branchId'] as String?,
     );
   }
